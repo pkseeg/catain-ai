@@ -3,4 +3,4 @@ My wife and I want to play Settlers of Catan together during quarantine but we n
 
 ## Board
 Here's the board, labeled.
-![Labeled Game Board](images/game_board.png?raw=true \"Title\")
+[Labeled Game Board](images/game_board.png?raw=true \"Title\")
