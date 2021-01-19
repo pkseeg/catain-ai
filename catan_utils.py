@@ -14,17 +14,25 @@ class Tile:
         return s
 
 class Edge:
-    def __init__(self,l_intr=None,r_intr=None):
+    def __init__(self,board_num,l_intr=None,r_intr=None):
         self.player = 0
+        self.board_num = board_num
         self.l_intr = l_intr
         self.r_intr = r_intr
+        self.intrs = []
+        self.claimed = False
     
     def setIntrs(self,l_intr,r_intr):
         self.l_intr = l_intr
         self.r_intr = r_intr
+        if self.l_intr:
+            self.intrs.append(self.l_intr)
+        if self.r_intr:
+            self.intrs.append(self.r_intr)
     
     def claim(self, player):
         self.player = player
+        self.claimed = True
     
     def __str__(self):
         s = str(self.player)
@@ -38,16 +46,35 @@ class Intersection:
         self.player = 0
         self.building = 'E'
         self.port = ''
+        self.edges = []
+        self.tiles = []
         self.lt = l_tile
+        if self.lt:
+            self.tiles.append(self.lt)
         self.mt = m_tile
+        if self.mt:
+            self.tiles.append(self.mt)
         self.rt = r_tile
+        if self.rt:
+            self.tiles.append(self.rt)
         self.le = l_edge
+        if self.le:
+            self.edges.append(self.le)
         self.me = m_edge
+        if self.me:
+            self.edges.append(self.me)
         self.re = r_edge
+        if self.re:
+            self.edges.append(self.re)
+        self.claimed = False
+    
+    def setBoardNum(self,board_num):
+        self.board_num = board_num
     
     def claim(self, player):
         self.player = player
         self.building = 'S'
+        self.claimed = True
     
     def upgrade(self):
         self.building = 'C'
@@ -59,7 +86,7 @@ class Intersection:
         s = self.building
         s += str(self.player)
         return s
-    
+
 class Board:
     def __init__(self,random_init,tile_nums,resources,ports):
         '''
@@ -92,7 +119,7 @@ class Board:
         # initialize the edges
         self.edges = [0]*72
         for i in range(72):
-            self.edges[i] = Edge()
+            self.edges[i] = Edge(i)
         
         # initialize the intersections (this is easier than trying to figure out the loops lol)
         self.intrs = [0]*54
@@ -256,6 +283,9 @@ class Board:
         self.intrs[38].setPort(ports[7])
         self.intrs[27].setPort(ports[8])
         self.intrs[16].setPort(ports[8])
+        
+        for i in range(len(self.intrs)):
+            self.intrs[i].setBoardNum(i)
         
         
     def __str__(self):
@@ -423,63 +453,72 @@ class Board:
     def claimEdge(self,player_num,edge_num):
         self.edges[edge_num].claim(player_num)
 
+        
 class Player:
-    def __init__(self,number,species='human'):
+    def __init__(self,number,species):
         self.num = number
-        self.species = species
+        self.type = species
+        
+    def isHuman(self):
+        return self.type == 'human'
+
+class RandomPlayer(Player):
+    def __init__(self,number):
+        Player.__init__(self, number, 'random')
         self.rsrcs = {'St':0, 'Br':0, 'Wh':0, 'Wo':0, 'Lu':0}
         self.dvlps = {'Kn':0, 'Vp':0, 'Yp':0, 'Mn':0, 'Rb':0}
         self.exchanges = {'St':4, 'Br':4, 'Wh':4, 'Wo':4, 'Lu':4}
         self.sttls = []
         self.cities = []
+        self.roads = []
         self.longestRoad = False
         self.largestArmy = False
         self.score = 0
-    
-    def isHuman(self):
-        return self.species=='human'
 
-class CatanGame:
-    def __init__(self, random_init, tile_nums, resources, ports):
-        self.board = Board(random_init,tile_nums,resources,ports)
     
-    def __setPlayers(self,n,p1Type,p2Type,p3Type,p4Type=None):
-        self.n = n
-        self.p1 = Player(1,species=p1Type)
-        self.p2 = Player(2,species=p2Type)
-        self.p3 = Player(3,species=p3Type)
-        self.players = [self.p1, self.p2, self.p3]
-        if self.n == 4:
-            self.p4 = Player(4,species=p4Type)
-            self.players.append(self.p4)
+    def buyRoad(self,road_num):
+        self.rsrcs['Lu'] -= 1
+        self.rsrcs['Br'] -= 1
+        self.roads.append(road_num)
     
-    def __roll(self):
-        return random.randint(1,6) + random.randint(1,6)
-            
+    def buySettlement(self,settlement_num):
+        self.rsrcs['Lu'] -= 1
+        self.rsrcs['Br'] -= 1
+        self.rsrcs['Wh'] -= 1
+        self.rsrcs['Wo'] -= 1
+        self.sttls.append(settlement_num)
     
-    def play(self):
-        print("Welcom to Catan!")
-            
-        # Set up the players
-        n = int(input("How many players will you be playing with (1-4)? "))
-        print("\nRoll for settlement selection!\nPlayer 1 will be going first.")
-        time.sleep(2)
-        p1Type = input("Player 1 Type (human/ai): ")
-        p2Type = input("Player 2 Type (human/ai): ")
-        p3Type = input("Player 3 Type (human/ai): ")
-        if n == 4:
-            p4Type = input("Player 4 Type (human/ai): ")
-        else:
-            p4Type = None
-        self.__setPlayers(n,p1Type,p2Type,p3Type,p4Type)
+    def upgradeSettlement(self,settlement_num):
+        self.rsrcs['Wh'] -= 2
+        self.rsrcs['St'] -= 3
+        self.sttls.remove(settlement_num)
+        self.cities.append(settlement_num)
+    
+    def buyDevelopmentCard(self,dev_cards):
+        self.rsrcs['Wh'] -= 1
+        self.rsrcs['St'] -= 1
+        self.rsrcs['Wo'] -= 1
+    
+    def claimSettlement(self,board):
+        available = [True]*54
+        for i, intr in enumerate(board.intrs):
+            if intr.claimed:
+                available[i] = False
+                continue
+            for e, edge in enumerate(intr.edges):
+                # FIXME: not sure if this equality will work 
+                if edge.l_intr != intr and edge.l_intr.claimed:
+                    available[i] = False
+                if edge.r_intr != intr and edge.r_intr.claimed:
+                    available[i] = False
         
-        # Print the empty board
-        print("Here's the empty board\n\n"+str(self.board))
+        i_choice = random.randint(0,53)
+        while not available[i_choice]:
+            i_choice = random.randint(0,53)
         
-        # Claim initial settlements
-        for p in self.players:
-            int_num = int(input('Player '+str(p.num)+"'s first intersection num: "))
-            self.board.claimInt(p.num,int_num)
-            road_num = int(input('Player '+str(p.num)+"'s first edge num: "))
-            self.board.claimEdge(p.num,road_num)
-            print("\nBoard\n"+str(self.board))
+        available_edges = []
+        for edge in board.intrs[i_choice].edges:
+            if not edge.claimed:
+                available_edges.append(edge.board_num)
+        e_choice = random.sample(available_edges,1)
+        return i_choice, e_choice[0]
